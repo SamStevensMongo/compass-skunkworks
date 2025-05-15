@@ -283,8 +283,8 @@ const SchemaViewStep = () => {
             </SegmentedControlOption>
           );
         })}
-        <SegmentedControlOption value={'relationship'}>
-          relationship
+        <SegmentedControlOption value={'relationships'}>
+          relationships
         </SegmentedControlOption>
       </SegmentedControl>
       {FAKE_SCHEMA_GENERATE_RESPONSE.collections.map((collection) => {
@@ -427,6 +427,23 @@ const SchemaViewStep = () => {
           </div>
         );
       })}
+
+      {activeTab === 'relationships' && (
+        <div>
+          <Code
+            id="relationship-preview"
+            data-testid="relationship-preview"
+            language="json"
+            copyable={false}
+          >
+            {`${JSON.stringify(
+              FAKE_SCHEMA_GENERATE_RESPONSE.relationships[0],
+              null,
+              2
+            )}`}
+          </Code>
+        </div>
+      )}
     </div>
   );
 };
@@ -434,21 +451,46 @@ const SchemaViewStep = () => {
 const ConfirmNumberOfDocumentsStep = ({
   numberOfDocuments,
   setNumberOfDocuments,
+  numberOfDocumentsReference,
+  setNumberOfDocumentsReference,
+  collName,
+  referenceCollName,
 }: {
   numberOfDocuments: number;
   setNumberOfDocuments: (numberOfDocuments: number) => void;
+  numberOfDocumentsReference: number;
+  setNumberOfDocumentsReference: (numberOfDocuments: number) => void;
+  collName: string;
+  referenceCollName: string;
 }) => {
   return (
-    <div className={rowStyles}>
-      <TextInput
-        label=" Documents to generate in current collection"
-        id="number-of-documents"
-        aria-label="number-of-documents"
-        type="number"
-        min="1"
-        value={`${numberOfDocuments}`}
-        onChange={(e) => setNumberOfDocuments(Number.parseInt(e.target.value))}
-      />
+    <div style={{ display: 'flex', gap: '16px' }}>
+      <div className={rowStyles} style={{ flex: 1 }}>
+        <TextInput
+          label={`Documents to generate in ${collName}`}
+          id="number-of-documents"
+          aria-label="number-of-documents"
+          type="number"
+          min="1"
+          value={`${numberOfDocuments}`}
+          onChange={(e) =>
+            setNumberOfDocuments(Number.parseInt(e.target.value))
+          }
+        />
+      </div>
+      <div className={rowStyles} style={{ flex: 1 }}>
+        <TextInput
+          label={`Documents to generate in ${referenceCollName}`}
+          id="number-of-documents-reference"
+          aria-label="number-of-documents-reference"
+          type="number"
+          min="1"
+          value={`${numberOfDocumentsReference}`}
+          onChange={(e) =>
+            setNumberOfDocumentsReference(Number.parseInt(e.target.value))
+          }
+        />
+      </div>
     </div>
   );
 };
@@ -570,6 +612,10 @@ const MockDataGeneratorModal: React.FunctionComponent<
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedNumberOfDocuments, setSelectedNumberOfDocuments] =
     useState<number>(DEFAULT_NUMBER_OF_DOCUMENTS);
+  const [
+    selectedNumberOfDocumentsReference,
+    setSelectedNumberOfDocumentsReference,
+  ] = useState<number>(DEFAULT_NUMBER_OF_DOCUMENTS);
   const [isAiWarningChecked, setIsAiWarningChecked] = useState<boolean>(false);
 
   if (!modalOpen) {
@@ -683,6 +729,12 @@ const MockDataGeneratorModal: React.FunctionComponent<
           <ConfirmNumberOfDocumentsStep
             numberOfDocuments={selectedNumberOfDocuments}
             setNumberOfDocuments={setSelectedNumberOfDocuments}
+            numberOfDocumentsReference={selectedNumberOfDocumentsReference}
+            setNumberOfDocumentsReference={
+              setSelectedNumberOfDocumentsReference
+            }
+            collName={collName}
+            referenceCollName={selectedRelatedCollections[0]}
           />
         )}
         {currentStep === 3 && (
