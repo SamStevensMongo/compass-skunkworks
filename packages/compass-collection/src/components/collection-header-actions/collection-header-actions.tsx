@@ -93,7 +93,7 @@ const CollectionHeaderActions: React.FunctionComponent<
             leftGlyph={<Icon glyph="Sparkle" />}
             onClick={() => onGenerateMockDataClick?.()}
           >
-            Generate mock data
+            Generate Mock Data
           </Button>
           <Button
             data-testid="collection-header-visualize-your-data"

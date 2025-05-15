@@ -11,7 +11,8 @@ import {
   TextInput,
 } from '@mongodb-js/compass-components';
 
-import { Size } from '@leafygreen-ui/select';
+import { Size, Select, Option } from '@leafygreen-ui/select';
+import TextArea from '@leafygreen-ui/text-area';
 import {
   Table,
   TableHead,
@@ -39,6 +40,8 @@ import { ObjectId } from 'bson';
 import {
   FAKE_SCHEMA_GENERATE_PAYLOAD,
   FAKE_SCHEMA_GENERATE_RESPONSE,
+  FAKER_DATA_TYPES,
+  MONGODB_DATA_TYPES,
 } from '../constants';
 
 const columnStyles = css`
@@ -77,10 +80,31 @@ const tableStyles = css`
     table-layout: fixed;
     width: 100%;
   }
-  th,
-  td {
-    width: 25%;
+
+  tbody tr:first-child td {
+    padding-top: 10px;
   }
+
+  th:nth-child(1),
+  td:nth-child(1) {
+    width: 20%;
+  }
+
+  th:nth-child(2),
+  td:nth-child(2) {
+    width: 20%;
+  }
+
+  th:nth-child(3),
+  td:nth-child(3) {
+    width: 30%;
+  }
+
+  th:nth-child(4),
+  td:nth-child(4) {
+    width: 30%;
+  }
+
   th:first-of-type,
   td:first-child {
     padding-left: 0;
@@ -89,6 +113,26 @@ const tableStyles = css`
     white-space: normal;
     word-break: break-word;
     padding: 8px;
+  }
+`;
+
+const tableSelectStyles = css`
+  label {
+    display: none;
+  }
+  select {
+    width: 100%;
+  }
+`;
+
+const textAreaStyles = css`
+  label {
+    display: none;
+  }
+  textarea {
+    width: 100%;
+    min-height: 32px;
+    resize: vertical;
   }
 `;
 
@@ -131,10 +175,98 @@ const SchemaViewStep = () => {
     FAKE_SCHEMA_GENERATE_RESPONSE.collections[0].name
   );
 
+  // Add state for schema modifications
+  const [schemaState, setSchemaState] = useState(() => {
+    // Initialize state from FAKE_SCHEMA_GENERATE_RESPONSE
+    return FAKE_SCHEMA_GENERATE_RESPONSE.collections.reduce(
+      (acc, collection) => {
+        acc[collection.name] = { ...collection.schema };
+        return acc;
+      },
+      {} as Record<string, Record<string, any>>
+    );
+  });
+
+  // Handler for MongoDB data type changes
+  const handleMongoDBTypeChange = (
+    collectionName: string,
+    fieldName: string,
+    newType: string
+  ) => {
+    setSchemaState((prev) => ({
+      ...prev,
+      [collectionName]: {
+        ...prev[collectionName],
+        [fieldName]: {
+          ...prev[collectionName][fieldName],
+          type: newType,
+        },
+      },
+    }));
+  };
+
+  // Handler for Faker module changes
+  const handleFakerModuleChange = (
+    collectionName: string,
+    fieldName: string,
+    newFaker: string
+  ) => {
+    setSchemaState((prev) => ({
+      ...prev,
+      [collectionName]: {
+        ...prev[collectionName],
+        [fieldName]: {
+          ...prev[collectionName][fieldName],
+          faker: newFaker,
+        },
+      },
+    }));
+  };
+
+  // Handler for Faker args changes
+  const handleFakerArgsChange = (
+    collectionName: string,
+    fieldName: string,
+    index: number,
+    newValue: string
+  ) => {
+    setSchemaState((prev) => {
+      const currentArgs = [
+        ...(prev[collectionName][fieldName].fakerArgs || []),
+      ];
+      currentArgs[index] = newValue;
+      return {
+        ...prev,
+        [collectionName]: {
+          ...prev[collectionName],
+          [fieldName]: {
+            ...prev[collectionName][fieldName],
+            fakerArgs: currentArgs,
+          },
+        },
+      };
+    });
+  };
+
+  // Handler for adding new faker arg
+  const handleAddFakerArg = (collectionName: string, fieldName: string) => {
+    setSchemaState((prev) => ({
+      ...prev,
+      [collectionName]: {
+        ...prev[collectionName],
+        [fieldName]: {
+          ...prev[collectionName][fieldName],
+          fakerArgs: [...(prev[collectionName][fieldName].fakerArgs || []), ''],
+        },
+      },
+    }));
+  };
+
   return (
     <div>
       <p>
-        We sampled docs from your collections to infer the following schema:
+        We sampled docs from your collections to infer the following schema.
+        Feel free to edit the values as needed.
       </p>
 
       <SegmentedControl
@@ -143,7 +275,10 @@ const SchemaViewStep = () => {
       >
         {FAKE_SCHEMA_GENERATE_RESPONSE.collections.map((collection) => {
           return (
-            <SegmentedControlOption value={collection.name}>
+            <SegmentedControlOption
+              key={collection.name}
+              value={collection.name}
+            >
               {collection.name}
             </SegmentedControlOption>
           );
@@ -161,22 +296,127 @@ const SchemaViewStep = () => {
                   <HeaderRow>
                     <HeaderCell>Field Name</HeaderCell>
                     <HeaderCell>MongoDB Data Type</HeaderCell>
-                    <HeaderCell>faker-js module</HeaderCell>
-                    <HeaderCell>faker-js module args</HeaderCell>
+                    <HeaderCell>Faker-js Module</HeaderCell>
+                    <HeaderCell>Faker-js Args</HeaderCell>
                   </HeaderRow>
                 </TableHead>
                 <TableBody>
                   {Object.keys(collection.schema).map((fieldName) => {
-                    const metadata = collection.schema[fieldName];
+                    const metadata = schemaState[collection.name][fieldName];
                     return (
-                      <Row>
+                      <Row key={fieldName}>
                         <Cell>{fieldName}</Cell>
-                        <Cell>{metadata.type}</Cell>
-                        <Cell>{metadata.faker}</Cell>
                         <Cell>
-                          {metadata.fakerArgs
-                            ?.map((arg) => JSON.stringify(arg))
-                            .join(', ')}
+                          <Select
+                            className={tableSelectStyles}
+                            value={metadata.type}
+                            onChange={(value) =>
+                              handleMongoDBTypeChange(
+                                collection.name,
+                                fieldName,
+                                value
+                              )
+                            }
+                            label="MongoDB Data Type"
+                            dropdownWidthBasis="option"
+                            size={Size.Small}
+                          >
+                            {MONGODB_DATA_TYPES.map((type) => (
+                              <Option key={type} value={type}>
+                                {type}
+                              </Option>
+                            ))}
+                          </Select>
+                        </Cell>
+                        <Cell>
+                          <Select
+                            className={tableSelectStyles}
+                            value={metadata.faker ?? ''}
+                            onChange={(value) =>
+                              handleFakerModuleChange(
+                                collection.name,
+                                fieldName,
+                                value
+                              )
+                            }
+                            label="Faker Module"
+                            dropdownWidthBasis="option"
+                            size={Size.Small}
+                          >
+                            {FAKER_DATA_TYPES.map((type) => (
+                              <Option key={type} value={type}>
+                                {type}
+                              </Option>
+                            ))}
+                          </Select>
+                        </Cell>
+                        <Cell>
+                          <div
+                            className={css`
+                              display: flex;
+                              flex-direction: column;
+                              gap: 8px;
+                            `}
+                          >
+                            {metadata.faker === 'helpers.arrayElement' ? (
+                              <TextArea
+                                className={textAreaStyles}
+                                value={
+                                  metadata.fakerArgs
+                                    ? JSON.stringify(metadata.fakerArgs)
+                                    : ''
+                                }
+                                onChange={(
+                                  e: React.ChangeEvent<HTMLTextAreaElement>
+                                ) =>
+                                  handleFakerArgsChange(
+                                    collection.name,
+                                    fieldName,
+                                    0,
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="Enter comma-separated values"
+                                aria-labelledby={`faker-args-${fieldName}-0`}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                  }
+                                }}
+                              />
+                            ) : (
+                              metadata.fakerArgs?.map(
+                                (arg: any, index: number) => (
+                                  <TextArea
+                                    key={index}
+                                    className={textAreaStyles}
+                                    value={
+                                      typeof arg === 'object'
+                                        ? JSON.stringify(arg)
+                                        : String(arg)
+                                    }
+                                    onChange={(
+                                      e: React.ChangeEvent<HTMLTextAreaElement>
+                                    ) =>
+                                      handleFakerArgsChange(
+                                        collection.name,
+                                        fieldName,
+                                        index,
+                                        e.target.value
+                                      )
+                                    }
+                                    placeholder={`Argument ${index + 1}`}
+                                    aria-labelledby={`faker-args-${fieldName}-${index}`}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                      }
+                                    }}
+                                  />
+                                )
+                              )
+                            )}
+                          </div>
                         </Cell>
                       </Row>
                     );
@@ -215,10 +455,12 @@ const ConfirmNumberOfDocumentsStep = ({
 
 const SelectCollectionsStep = ({
   collections,
+  collName,
   selectedRelatedCollections,
   onCollectionSelect,
 }: {
   collections: Array<string>;
+  collName: string;
   selectedRelatedCollections: Array<string>;
   onCollectionSelect: (selectedCollection: Array<string>) => void;
 }) => {
@@ -234,13 +476,15 @@ const SelectCollectionsStep = ({
         value={selectedRelatedCollections}
         size={Size.Small}
       >
-        {collections.map((collection) => {
-          return (
-            <ComboboxOption key={collection} value={collection}>
-              {collection}
-            </ComboboxOption>
-          );
-        })}
+        {collections
+          .filter((collection) => collection !== collName)
+          .map((collection) => {
+            return (
+              <ComboboxOption key={collection} value={collection}>
+                {collection}
+              </ComboboxOption>
+            );
+          })}
       </Combobox>
     </div>
   );
@@ -429,6 +673,7 @@ const MockDataGeneratorModal: React.FunctionComponent<
         {currentStep === 0 && (
           <SelectCollectionsStep
             collections={collections}
+            collName={collName}
             selectedRelatedCollections={selectedRelatedCollections}
             onCollectionSelect={onCollectionSelect}
           />

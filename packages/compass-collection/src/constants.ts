@@ -24,6 +24,7 @@ interface Relationship {
   fromCollection: string;
   fromField: string;
   toCollection: string;
+  toField: string;
 }
 
 interface FakeSchemaGenerateResponse {
@@ -141,6 +142,7 @@ export const FAKE_SCHEMA_GENERATE_RESPONSE: FakeSchemaGenerateResponse = {
       fromCollection: 'products',
       fromField: 'productId',
       toCollection: 'orders',
+      toField: 'products.productId',
     },
   ],
 };
@@ -249,3 +251,128 @@ export const FAKE_SCHEMA_GENERATE_PAYLOAD = [
     ],
   },
 ];
+
+export const FAKER_DATA_TYPES = [
+  // Person
+  'person.firstName',
+  'person.lastName',
+  'person.fullName',
+  'person.gender',
+  'person.jobTitle',
+  'person.jobDescriptor',
+  'person.prefix',
+  'person.suffix',
+
+  // Internet
+  'internet.email',
+  'internet.userName',
+  'internet.domainName',
+  'internet.url',
+  'internet.ip',
+  'internet.ipv6',
+  'internet.password',
+
+  // Date
+  'date.past',
+  'date.future',
+  'date.recent',
+  'date.soon',
+  'date.month',
+  'date.weekday',
+
+  // Address
+  'address.streetAddress',
+  'address.city',
+  'address.state',
+  'address.country',
+  'address.zipCode',
+  'address.latitude',
+  'address.longitude',
+
+  // Company
+  'company.name',
+  'company.catchPhrase',
+  'company.bs',
+  'company.companyName',
+
+  // Finance
+  'finance.account',
+  'finance.accountName',
+  'finance.amount',
+  'finance.bitcoinAddress',
+  'finance.creditCardNumber',
+  'finance.currencyCode',
+  'finance.transactionType',
+
+  // Commerce
+  'commerce.product',
+  'commerce.productName',
+  'commerce.price',
+  'commerce.department',
+
+  // Database
+  'database.column',
+  'database.type',
+  'database.collation',
+  'database.engine',
+  'database.mongodbObjectId',
+
+  // Datatype
+  'datatype.boolean',
+  'datatype.float',
+  'datatype.datetime',
+  'datatype.hexadecimal',
+  'datatype.json',
+  'datatype.array',
+  'datatype.bigInt',
+  'datatype.number',
+  'datatype.string',
+  'datatype.uuid',
+
+  // System
+  'system.fileName',
+  'system.mimeType',
+  'system.directoryPath',
+  'system.fileExt',
+
+  // Random
+  'random.alpha',
+  'random.alphaNumeric',
+  'random.numeric',
+  'random.uuid',
+
+  // Helpers
+  'helpers.arrayElement',
+  'helpers.arrayElements',
+  'helpers.objectKey',
+  'helpers.objectValue',
+  'helpers.regexpPattern',
+  'helpers.slugify',
+  'helpers.replaceSymbols',
+  'helpers.replaceSymbolWithNumber',
+  'helpers.maybe',
+  'helpers.shuffle',
+  'helpers.mustache',
+  'helpers.fromRegExp',
+  'helpers.rangeToNumber',
+  'helpers.multiple',
+  'helpers.unique',
+
+  // Number
+  'number.int',
+  'number.float',
+  'number.bigInt',
+  'number.binary',
+  'number.octal',
+  'number.hex',
+] as const;
+
+export const MONGODB_DATA_TYPES = [
+  'ObjectId',
+  'String',
+  'Number',
+  'Boolean',
+  'Date',
+  'Array',
+  'Object',
+] as const;

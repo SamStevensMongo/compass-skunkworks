@@ -105,6 +105,8 @@
     }
   },
   "dependencies": {
-    "@leafygreen-ui/table": "^13.1.9"
+    "@leafygreen-ui/select": "^14.1.7",
+    "@leafygreen-ui/table": "^13.1.9",
+    "@leafygreen-ui/text-area": "^10.0.11"
   }
 }
