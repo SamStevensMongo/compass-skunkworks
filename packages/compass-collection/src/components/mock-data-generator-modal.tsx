@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 
 import { Chip, Variant } from '@leafygreen-ui/chip';
+import type { Document } from 'mongodb';
+
 import {
   Body,
   css,
@@ -9,6 +11,8 @@ import {
   Code,
   Checkbox,
   TextInput,
+  Banner,
+  SpinLoaderWithLabel,
 } from '@mongodb-js/compass-components';
 
 import { Size, Select, Option } from '@leafygreen-ui/select';
@@ -35,20 +39,23 @@ import {
   ButtonVariant,
 } from '@mongodb-js/compass-components';
 import { connect } from 'react-redux';
-import type { CollectionState } from '../modules/collection-tab';
+import {
+  fetchSampleDocuments,
+  type CollectionState,
+} from '../modules/collection-tab';
 import { ObjectId } from 'bson';
 import {
-  FAKE_SCHEMA_GENERATE_PAYLOAD,
   FAKE_SCHEMA_GENERATE_RESPONSE,
   FAKER_DATA_TYPES,
   MONGODB_DATA_TYPES,
+  SampledDocuments,
+  SchemaGenerateResponse,
 } from '../constants';
 
 const columnStyles = css`
   display: flex;
   gap: 8px;
   flex-direction: row;
-  justify-content: space-between;
   margin: 20px 0;
 `;
 
@@ -136,55 +143,38 @@ const textAreaStyles = css`
   }
 `;
 
+const chipTitleStyles = css`
+  font-weight: 600;
+`;
+
+const chipStyles = css`
+  width: fit-content;
+`;
+
+const codeStyles = css`
+  height: 450px;
+  overflow: auto;
+`;
+
 const MAX_NUMBER_OF_STEPS = 4;
 const LAST_STEP = MAX_NUMBER_OF_STEPS - 1;
 const DEFAULT_NUMBER_OF_DOCUMENTS = 100;
 
-const MOCK_PREVIEW_DOCS = `
-          personDocument = {
-            "name": { "first": "Alan", "last": "Turing" },
-            "birth": datetime.datetime(1912, 6, 23),
-          }
-
-          personDocument = {
-            "name": { "first": "Alan", "last": "Turing" },
-            "birth": datetime.datetime(1912, 6, 23),
-          }
-
-          personDocument = {
-            "name": { "first": "Alan", "last": "Turing" },
-            "birth": datetime.datetime(1912, 6, 23),
-          }
-
-          personDocument = {
-            "name": { "first": "Alan", "last": "Turing" },
-            "birth": datetime.datetime(1912, 6, 23),
-          }
-
-          personDocument = {
-            "name": { "first": "Alan", "last": "Turing" },
-            "birth": datetime.datetime(1912, 6, 23),
-          }`;
-
 type MockDataGeneratorModalState = {
   collections: Array<string>;
+  sampledDocuments: Array<SampledDocuments> | null;
 };
 
-const SchemaViewStep = () => {
-  const [activeTab, setActiveTab] = useState(
-    FAKE_SCHEMA_GENERATE_RESPONSE.collections[0].name
-  );
+const SchemaViewStep = ({ schema }: { schema: SchemaGenerateResponse }) => {
+  const [activeTab, setActiveTab] = useState(schema.collections[0].name);
 
   // Add state for schema modifications
   const [schemaState, setSchemaState] = useState(() => {
     // Initialize state from FAKE_SCHEMA_GENERATE_RESPONSE
-    return FAKE_SCHEMA_GENERATE_RESPONSE.collections.reduce(
-      (acc, collection) => {
-        acc[collection.name] = { ...collection.schema };
-        return acc;
-      },
-      {} as Record<string, Record<string, any>>
-    );
+    return schema.collections.reduce((acc, collection) => {
+      acc[collection.name] = { ...collection.schema };
+      return acc;
+    }, {} as Record<string, Record<string, any>>);
   });
 
   // Handler for MongoDB data type changes
@@ -273,7 +263,7 @@ const SchemaViewStep = () => {
         value={activeTab}
         onChange={(value) => setActiveTab(value)}
       >
-        {FAKE_SCHEMA_GENERATE_RESPONSE.collections.map((collection) => {
+        {schema.collections.map((collection) => {
           return (
             <SegmentedControlOption
               key={collection.name}
@@ -287,7 +277,7 @@ const SchemaViewStep = () => {
           relationships
         </SegmentedControlOption>
       </SegmentedControl>
-      {FAKE_SCHEMA_GENERATE_RESPONSE.collections.map((collection) => {
+      {schema.collections.map((collection) => {
         return (
           <div key={collection.name}>
             {activeTab === collection.name && (
@@ -461,7 +451,7 @@ const ConfirmNumberOfDocumentsStep = ({
   numberOfDocumentsReference: number;
   setNumberOfDocumentsReference: (numberOfDocuments: number) => void;
   collName: string;
-  referenceCollName: string;
+  referenceCollName?: string;
 }) => {
   return (
     <div style={{ display: 'flex', gap: '16px' }}>
@@ -478,19 +468,21 @@ const ConfirmNumberOfDocumentsStep = ({
           }
         />
       </div>
-      <div className={rowStyles} style={{ flex: 1 }}>
-        <TextInput
-          label={`Documents to generate in ${referenceCollName}`}
-          id="number-of-documents-reference"
-          aria-label="number-of-documents-reference"
-          type="number"
-          min="1"
-          value={`${numberOfDocumentsReference}`}
-          onChange={(e) =>
-            setNumberOfDocumentsReference(Number.parseInt(e.target.value))
-          }
-        />
-      </div>
+      {referenceCollName && (
+        <div className={rowStyles} style={{ flex: 1 }}>
+          <TextInput
+            label={`Documents to generate in ${referenceCollName}`}
+            id="number-of-documents-reference"
+            aria-label="number-of-documents-reference"
+            type="number"
+            min="1"
+            value={`${numberOfDocumentsReference}`}
+            onChange={(e) =>
+              setNumberOfDocumentsReference(Number.parseInt(e.target.value))
+            }
+          />
+        </div>
+      )}
     </div>
   );
 };
@@ -535,10 +527,13 @@ const SelectCollectionsStep = ({
 const DataPreviewStep = ({
   isAiWarningChecked,
   setIsAiWarningChecked,
+  documents,
 }: {
   isAiWarningChecked: boolean;
   setIsAiWarningChecked: (isAiWarningChecked: boolean) => void;
+  documents: Array<Document>;
 }) => {
+  const stringifiedDocuments = JSON.stringify(documents);
   return (
     <div>
       <Code
@@ -546,9 +541,9 @@ const DataPreviewStep = ({
         data-testid="mock-data-preview"
         language="json"
         copyable={false}
+        className={codeStyles}
       >
-        {/* TODO: prettify */}
-        {MOCK_PREVIEW_DOCS}
+        {stringifiedDocuments}
       </Code>
 
       <div
@@ -603,11 +598,20 @@ const MockDataGeneratorModal: React.FunctionComponent<
     onModalClose: () => void;
     dbName: string;
     collName: string;
+    onCollectionsSelected: (namespaces: Array<string>) => void;
   }
-> = ({ modalOpen, onModalClose, dbName, collName, collections }) => {
+> = ({
+  modalOpen,
+  onModalClose,
+  dbName,
+  collName,
+  collections,
+  sampledDocuments,
+  onCollectionsSelected,
+}) => {
   const [selectedRelatedCollections, setSelectedRelatedCollections] = useState<
     Array<string>
-  >([]);
+  >(collections.filter((coll) => coll !== collName));
 
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedNumberOfDocuments, setSelectedNumberOfDocuments] =
@@ -617,6 +621,11 @@ const MockDataGeneratorModal: React.FunctionComponent<
     setSelectedNumberOfDocumentsReference,
   ] = useState<number>(DEFAULT_NUMBER_OF_DOCUMENTS);
   const [isAiWarningChecked, setIsAiWarningChecked] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [schema, setSchema] = useState<SchemaGenerateResponse | null>(null);
+  const [previewDocuments, setPreviewDocuments] =
+    useState<Array<Document> | null>(null);
 
   if (!modalOpen) {
     return null;
@@ -624,47 +633,92 @@ const MockDataGeneratorModal: React.FunctionComponent<
 
   const onCollectionSelect = (selectedCollection: Array<string>) => {
     setSelectedRelatedCollections(selectedCollection);
+    onCollectionsSelected(
+      [...selectedCollection, collName].map((coll) => dbName.concat('.', coll))
+    );
   };
 
-  const onPrimaryButtonClick = () => {
-    if (currentStep === 0) {
-      fetch('/schemaGenerator/generate', {
+  const fetchSchema = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('/schemaGenerator/generate', {
         method: 'POST',
-        body: JSON.stringify(FAKE_SCHEMA_GENERATE_PAYLOAD),
+        body: JSON.stringify(sampledDocuments),
         headers: {
           'Content-Type': 'application/json',
           ...createCsrfHeaders(),
         },
         credentials: 'include',
-      }).then((res) => console.log(res));
+      });
+      const data = (await response.json()) as SchemaGenerateResponse;
+      setSchema(data);
+    } catch (error: any) {
+      setErrorMessage(error.message);
+      console.log({ error });
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    if (currentStep === 2) {
-      fetch('http://localhost:3000/api/data-generation/sample', {
-        method: 'POST',
-        body: JSON.stringify({ schema: FAKE_SCHEMA_GENERATE_RESPONSE }),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }).then((res) => console.log(res));
+  const fetchPreviewDocuments = async () => {
+    try {
+      setIsLoading(true);
+
+      const response = await fetch(
+        'http://localhost:3000/api/data-generation/sample',
+        {
+          method: 'POST',
+          body: JSON.stringify({ schema }),
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      const previewData = await response.json();
+      setPreviewDocuments(previewData);
+    } catch (error: any) {
+      setErrorMessage(error.message);
+      console.log({ error });
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    if (currentStep === LAST_STEP) {
-      // TODO - insert mock data
-      console.log('Inserting mock data');
-
-      fetch('http://localhost:3000/api/data-generation/jobs', {
+  const submitDataGenerationJob = async () => {
+    try {
+      setIsLoading(true);
+      await fetch('http://localhost:3000/api/data-generation/jobs', {
         method: 'POST',
         body: JSON.stringify({
-          schema: FAKE_SCHEMA_GENERATE_RESPONSE,
+          schema,
           idempotencyKey: new ObjectId().toHexString(),
         }),
         headers: {
           'Content-Type': 'application/json',
         },
-      }).then((res) => console.log(res));
+      });
+    } catch (error: any) {
+      setErrorMessage(error.message);
+      console.log({ error });
+    } finally {
+      setIsLoading(false);
       onModalClose();
-      return;
+    }
+  };
+
+  const onPrimaryButtonClick = async () => {
+    setErrorMessage(null);
+    if (currentStep === 0) {
+      fetchSchema();
+    }
+
+    if (currentStep === 2) {
+      fetchPreviewDocuments();
+    }
+
+    if (currentStep === LAST_STEP) {
+      submitDataGenerationJob();
     }
     if (currentStep < LAST_STEP) {
       setCurrentStep(currentStep + 1);
@@ -672,10 +726,15 @@ const MockDataGeneratorModal: React.FunctionComponent<
   };
 
   const onBackButtonClick = () => {
+    setErrorMessage(null);
+
     if (currentStep > 0) {
       setCurrentStep(currentStep - 1);
     }
   };
+
+  const hasNotConfirmedAiWarning = !isAiWarningChecked && currentStep === 3;
+  const shouldDisablePrimaryButton = hasNotConfirmedAiWarning || !!errorMessage;
 
   return (
     <Modal
@@ -686,62 +745,84 @@ const MockDataGeneratorModal: React.FunctionComponent<
     >
       <ModalHeader title="Generate Mock Data" />
       <ModalBody>
-        {currentStep !== LAST_STEP && (
-          <div className={columnStyles}>
-            <div className={rowStyles}>
-              <Body weight="medium">Database</Body>
-              <Chip variant={Variant.Gray} label={dbName}>
-                {dbName}
-              </Chip>
-            </div>
+        {isLoading ? (
+          <SpinLoaderWithLabel progressText="Loading" />
+        ) : (
+          <>
+            {errorMessage && (
+              <Banner variant="danger">
+                <Body>{errorMessage}</Body>
+              </Banner>
+            )}
 
-            <div className={rowStyles}>
-              <Body weight="medium">Collection</Body>
-              <Chip variant={Variant.Gray} label={collName}>
-                {collName}
-              </Chip>
-            </div>
-
-            {(currentStep === 1 || currentStep === 2) &&
-              selectedRelatedCollections.length > 0 && (
+            {currentStep !== LAST_STEP && (
+              <div className={columnStyles}>
                 <div className={rowStyles}>
-                  <Body weight="medium">Related Collection</Body>
+                  <Body className={chipTitleStyles}>Database</Body>
                   <Chip
+                    className={chipStyles}
                     variant={Variant.Gray}
-                    label={selectedRelatedCollections[0]}
+                    label={dbName}
                   >
-                    {selectedRelatedCollections[0]}
+                    {dbName}
                   </Chip>
                 </div>
-              )}
-          </div>
-        )}
-        {currentStep === 0 && (
-          <SelectCollectionsStep
-            collections={collections}
-            collName={collName}
-            selectedRelatedCollections={selectedRelatedCollections}
-            onCollectionSelect={onCollectionSelect}
-          />
-        )}
-        {currentStep === 1 && <SchemaViewStep />}
-        {currentStep === 2 && (
-          <ConfirmNumberOfDocumentsStep
-            numberOfDocuments={selectedNumberOfDocuments}
-            setNumberOfDocuments={setSelectedNumberOfDocuments}
-            numberOfDocumentsReference={selectedNumberOfDocumentsReference}
-            setNumberOfDocumentsReference={
-              setSelectedNumberOfDocumentsReference
-            }
-            collName={collName}
-            referenceCollName={selectedRelatedCollections[0]}
-          />
-        )}
-        {currentStep === 3 && (
-          <DataPreviewStep
-            isAiWarningChecked={isAiWarningChecked}
-            setIsAiWarningChecked={setIsAiWarningChecked}
-          />
+
+                <div className={rowStyles}>
+                  <Body className={chipTitleStyles}>Collection</Body>
+                  <Chip
+                    className={chipStyles}
+                    variant={Variant.Gray}
+                    label={collName}
+                  >
+                    {collName}
+                  </Chip>
+                </div>
+
+                {(currentStep === 1 || currentStep === 2) &&
+                  selectedRelatedCollections.length > 0 && (
+                    <div className={rowStyles}>
+                      <Body weight="medium">Related Collection</Body>
+                      <Chip
+                        className={chipStyles}
+                        variant={Variant.Gray}
+                        label={selectedRelatedCollections[0]}
+                      >
+                        {selectedRelatedCollections[0]}
+                      </Chip>
+                    </div>
+                  )}
+              </div>
+            )}
+            {currentStep === 0 && (
+              <SelectCollectionsStep
+                collections={collections}
+                collName={collName}
+                selectedRelatedCollections={selectedRelatedCollections}
+                onCollectionSelect={onCollectionSelect}
+              />
+            )}
+            {currentStep === 1 && schema && <SchemaViewStep schema={schema} />}
+            {currentStep === 2 && (
+              <ConfirmNumberOfDocumentsStep
+                numberOfDocuments={selectedNumberOfDocuments}
+                setNumberOfDocuments={setSelectedNumberOfDocuments}
+                numberOfDocumentsReference={selectedNumberOfDocumentsReference}
+                setNumberOfDocumentsReference={
+                  setSelectedNumberOfDocumentsReference
+                }
+                collName={collName}
+                referenceCollName={selectedRelatedCollections[0]}
+              />
+            )}
+            {currentStep === 3 && previewDocuments && (
+              <DataPreviewStep
+                isAiWarningChecked={isAiWarningChecked}
+                setIsAiWarningChecked={setIsAiWarningChecked}
+                documents={previewDocuments}
+              />
+            )}
+          </>
         )}
       </ModalBody>
 
@@ -750,7 +831,7 @@ const MockDataGeneratorModal: React.FunctionComponent<
         <div className={rightButtonsStyles}>
           <Button onClick={onModalClose}>Cancel</Button>
           <Button
-            disabled={currentStep === 3 && !isAiWarningChecked}
+            disabled={shouldDisablePrimaryButton}
             variant={ButtonVariant.Primary}
             onClick={onPrimaryButtonClick}
           >
@@ -764,11 +845,11 @@ const MockDataGeneratorModal: React.FunctionComponent<
 
 const mapStateToProps = (state: CollectionState) => ({
   collections: state.collections,
+  sampledDocuments: state.sampledDocuments,
 });
 
-const MappedExportToLanguageModal = connect(
-  mapStateToProps,
-  {}
-)(MockDataGeneratorModal);
+const MappedExportToLanguageModal = connect(mapStateToProps, {
+  onCollectionsSelected: fetchSampleDocuments,
+})(MockDataGeneratorModal);
 
 export default MappedExportToLanguageModal;

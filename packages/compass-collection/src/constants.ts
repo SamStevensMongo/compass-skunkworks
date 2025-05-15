@@ -1,4 +1,5 @@
 import { ObjectId } from 'bson';
+import { Document } from 'mongodb';
 
 interface Field {
   type: string;
@@ -27,12 +28,17 @@ interface Relationship {
   toField: string;
 }
 
-interface FakeSchemaGenerateResponse {
+export interface SchemaGenerateResponse {
   collections: Collection[];
   relationships: Relationship[];
 }
 
-export const FAKE_SCHEMA_GENERATE_RESPONSE: FakeSchemaGenerateResponse = {
+export interface SampledDocuments {
+  collectionName: string;
+  documents: Array<Document>;
+}
+
+export const FAKE_SCHEMA_GENERATE_RESPONSE: SchemaGenerateResponse = {
   collections: [
     {
       name: 'products',

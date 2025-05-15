@@ -6,6 +6,7 @@ import reducer, {
   selectTab,
   collectionMetadataFetched,
   collectionsFetched,
+  sampledDocumentsFetched,
 } from '../modules/collection-tab';
 import type { Collection } from '@mongodb-js/compass-app-stores/provider';
 import type { ActivateHelpers } from 'hadron-app-registry';
@@ -61,6 +62,7 @@ export function activatePlugin(
       metadata: null,
       editViewName,
       collections: [],
+      sampledDocuments: null,
     },
     applyMiddleware(
       thunk.withExtraArgument({
@@ -95,6 +97,17 @@ export function activatePlugin(
     dataService.listCollections(database).then((collectionDetails) => {
       const collections = collectionDetails.map(({ name }) => name);
       store.dispatch(collectionsFetched(collections));
+    });
+    // initial sample documents
+    dataService.sample(namespace, { size: 5 }).then((sampledDocuments) => {
+      store.dispatch(
+        sampledDocumentsFetched([
+          {
+            collectionName: toNS(namespace).collection,
+            documents: sampledDocuments,
+          },
+        ])
+      );
     });
   });
 
