@@ -242,6 +242,133 @@ const SchemaViewStep = ({ schema }: { schema: SchemaGenerateResponse }) => {
     });
   };
 
+  const renderNestedFields = (
+    collectionName: string,
+    parentFieldName: string,
+    schema: Record<string, any>,
+    level: number = 0
+  ) => {
+    console.log('schema', schema);
+    return Object.entries(schema).map(([fieldName, metadata]) => {
+      const fullFieldName = `${parentFieldName}.${fieldName}`;
+
+      return (
+        <Row key={fullFieldName}>
+          <Cell>
+            <div
+              className={css`
+                padding-left: ${level * 20}px;
+              `}
+            >
+              {level > 0 && '↳ '}
+              {fieldName}
+            </div>
+          </Cell>
+          <Cell>
+            <Select
+              className={tableSelectStyles}
+              value={metadata.type}
+              onChange={(value) =>
+                handleMongoDBTypeChange(collectionName, fullFieldName, value)
+              }
+              label="MongoDB Data Type"
+              dropdownWidthBasis="option"
+              size={Size.Small}
+            >
+              {MONGODB_DATA_TYPES.map((type) => (
+                <Option key={type} value={type}>
+                  {type}
+                </Option>
+              ))}
+            </Select>
+          </Cell>
+          <Cell>
+            {metadata.type === 'ObjectId' ? (
+              '—'
+            ) : (
+              <Select
+                className={tableSelectStyles}
+                value={metadata.faker ?? ''}
+                onChange={(value) =>
+                  handleFakerModuleChange(collectionName, fullFieldName, value)
+                }
+                label="Faker-js Module"
+                dropdownWidthBasis="option"
+                size={Size.Small}
+              >
+                {FAKER_DATA_TYPES.map((type) => (
+                  <Option key={type} value={type}>
+                    {type}
+                  </Option>
+                ))}
+              </Select>
+            )}
+          </Cell>
+          <Cell>
+            <div
+              className={css`
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+              `}
+            >
+              {metadata.faker === 'helpers.arrayElement' ? (
+                <TextArea
+                  className={textAreaStyles}
+                  value={
+                    metadata.fakerArgs ? JSON.stringify(metadata.fakerArgs) : ''
+                  }
+                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                    handleFakerArgsChange(
+                      collectionName,
+                      fullFieldName,
+                      0,
+                      e.target.value
+                    )
+                  }
+                  placeholder="Enter comma-separated values"
+                  aria-labelledby={`faker-args-${fullFieldName}-0`}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                    }
+                  }}
+                />
+              ) : (
+                metadata.fakerArgs?.map((arg: any, index: number) => (
+                  <TextArea
+                    key={index}
+                    className={textAreaStyles}
+                    value={
+                      typeof arg === 'object'
+                        ? JSON.stringify(arg)
+                        : String(arg)
+                    }
+                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                      handleFakerArgsChange(
+                        collectionName,
+                        fullFieldName,
+                        index,
+                        e.target.value
+                      )
+                    }
+                    placeholder={`Argument ${index + 1}`}
+                    aria-labelledby={`faker-args-${fullFieldName}-${index}`}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                      }
+                    }}
+                  />
+                ))
+              )}
+            </div>
+          </Cell>
+        </Row>
+      );
+    });
+  };
+
   return (
     <div>
       <p>
@@ -285,125 +412,136 @@ const SchemaViewStep = ({ schema }: { schema: SchemaGenerateResponse }) => {
                   {Object.keys(collection.schema).map((fieldName) => {
                     const metadata = schemaState[collection.name][fieldName];
                     return (
-                      <Row key={fieldName}>
-                        <Cell>{fieldName}</Cell>
-                        <Cell>
-                          <Select
-                            className={tableSelectStyles}
-                            value={metadata.type}
-                            onChange={(value) =>
-                              handleMongoDBTypeChange(
-                                collection.name,
-                                fieldName,
-                                value
-                              )
-                            }
-                            label="MongoDB Data Type"
-                            dropdownWidthBasis="option"
-                            size={Size.Small}
-                          >
-                            {MONGODB_DATA_TYPES.map((type) => (
-                              <Option key={type} value={type}>
-                                {type}
-                              </Option>
-                            ))}
-                          </Select>
-                        </Cell>
-                        <Cell>
-                          {metadata.type === 'ObjectId' ? (
-                            '—'
-                          ) : (
+                      <React.Fragment key={fieldName}>
+                        <Row>
+                          <Cell>{fieldName}</Cell>
+                          <Cell>
                             <Select
                               className={tableSelectStyles}
-                              value={metadata.faker ?? ''}
+                              value={metadata.type}
                               onChange={(value) =>
-                                handleFakerModuleChange(
+                                handleMongoDBTypeChange(
                                   collection.name,
                                   fieldName,
                                   value
                                 )
                               }
-                              label="Faker Module"
+                              label="MongoDB Data Type"
                               dropdownWidthBasis="option"
                               size={Size.Small}
                             >
-                              {FAKER_DATA_TYPES.map((type) => (
+                              {MONGODB_DATA_TYPES.map((type) => (
                                 <Option key={type} value={type}>
                                   {type}
                                 </Option>
                               ))}
                             </Select>
-                          )}
-                        </Cell>
-                        <Cell>
-                          <div
-                            className={css`
-                              display: flex;
-                              flex-direction: column;
-                              gap: 8px;
-                            `}
-                          >
-                            {metadata.faker === 'helpers.arrayElement' ? (
-                              <TextArea
-                                className={textAreaStyles}
-                                value={
-                                  metadata.fakerArgs
-                                    ? JSON.stringify(metadata.fakerArgs)
-                                    : ''
-                                }
-                                onChange={(
-                                  e: React.ChangeEvent<HTMLTextAreaElement>
-                                ) =>
-                                  handleFakerArgsChange(
+                          </Cell>
+                          <Cell>
+                            {metadata.type === 'ObjectId' ||
+                            metadata.type === 'Array' ? (
+                              '—'
+                            ) : (
+                              <Select
+                                className={tableSelectStyles}
+                                value={metadata.faker ?? ''}
+                                onChange={(value) =>
+                                  handleFakerModuleChange(
                                     collection.name,
                                     fieldName,
-                                    0,
-                                    e.target.value
+                                    value
                                   )
                                 }
-                                placeholder="Enter comma-separated values"
-                                aria-labelledby={`faker-args-${fieldName}-0`}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                  }
-                                }}
-                              />
-                            ) : (
-                              metadata.fakerArgs?.map(
-                                (arg: any, index: number) => (
-                                  <TextArea
-                                    key={index}
-                                    className={textAreaStyles}
-                                    value={
-                                      typeof arg === 'object'
-                                        ? JSON.stringify(arg)
-                                        : String(arg)
-                                    }
-                                    onChange={(
-                                      e: React.ChangeEvent<HTMLTextAreaElement>
-                                    ) =>
-                                      handleFakerArgsChange(
-                                        collection.name,
-                                        fieldName,
-                                        index,
-                                        e.target.value
-                                      )
-                                    }
-                                    placeholder={`Argument ${index + 1}`}
-                                    aria-labelledby={`faker-args-${fieldName}-${index}`}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter') {
-                                        e.preventDefault();
-                                      }
-                                    }}
-                                  />
-                                )
-                              )
+                                label="Faker Module"
+                                dropdownWidthBasis="option"
+                                size={Size.Small}
+                              >
+                                {FAKER_DATA_TYPES.map((type) => (
+                                  <Option key={type} value={type}>
+                                    {type}
+                                  </Option>
+                                ))}
+                              </Select>
                             )}
-                          </div>
-                        </Cell>
-                      </Row>
+                          </Cell>
+                          <Cell>
+                            <div
+                              className={css`
+                                display: flex;
+                                flex-direction: column;
+                                gap: 8px;
+                              `}
+                            >
+                              {metadata.faker === 'helpers.arrayElement' ? (
+                                <TextArea
+                                  className={textAreaStyles}
+                                  value={
+                                    metadata.fakerArgs
+                                      ? JSON.stringify(metadata.fakerArgs)
+                                      : ''
+                                  }
+                                  onChange={(
+                                    e: React.ChangeEvent<HTMLTextAreaElement>
+                                  ) =>
+                                    handleFakerArgsChange(
+                                      collection.name,
+                                      fieldName,
+                                      0,
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder="Enter comma-separated values"
+                                  aria-labelledby={`faker-args-${fieldName}-0`}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                    }
+                                  }}
+                                />
+                              ) : (
+                                metadata.fakerArgs?.map(
+                                  (arg: any, index: number) => (
+                                    <TextArea
+                                      key={index}
+                                      className={textAreaStyles}
+                                      value={
+                                        typeof arg === 'object'
+                                          ? JSON.stringify(arg)
+                                          : String(arg)
+                                      }
+                                      onChange={(
+                                        e: React.ChangeEvent<HTMLTextAreaElement>
+                                      ) =>
+                                        handleFakerArgsChange(
+                                          collection.name,
+                                          fieldName,
+                                          index,
+                                          e.target.value
+                                        )
+                                      }
+                                      placeholder={`Argument ${index + 1}`}
+                                      aria-labelledby={`faker-args-${fieldName}-${index}`}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          e.preventDefault();
+                                        }
+                                      }}
+                                    />
+                                  )
+                                )
+                              )}
+                            </div>
+                          </Cell>
+                        </Row>
+                        {metadata.type === 'Array' &&
+                          metadata.items?.schema &&
+                          renderNestedFields(
+                            collection.name,
+                            fieldName,
+                            metadata.items.schema,
+                            1
+                          )}
+                      </React.Fragment>
                     );
                   })}
                 </TableBody>
