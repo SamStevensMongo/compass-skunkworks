@@ -12,7 +12,6 @@ import {
   Checkbox,
   TextInput,
   Banner,
-  SpinLoaderWithLabel,
 } from '@mongodb-js/compass-components';
 
 import { Size, Select, Option } from '@leafygreen-ui/select';
@@ -152,6 +151,7 @@ const chipStyles = css`
 `;
 
 const codeStyles = css`
+  width: 100%;
   height: 450px;
   overflow: auto;
 `;
@@ -160,10 +160,14 @@ const MAX_NUMBER_OF_STEPS = 4;
 const LAST_STEP = MAX_NUMBER_OF_STEPS - 1;
 const DEFAULT_NUMBER_OF_DOCUMENTS = 100;
 
-type MockDataGeneratorModalState = {
+interface MockDataGeneratorModalState {
   collections: Array<string>;
   sampledDocuments: Array<SampledDocuments> | null;
-};
+}
+
+interface PreviewDocumentsResponse {
+  [collectionName: string]: Array<Document>;
+}
 
 const SchemaViewStep = ({ schema }: { schema: SchemaGenerateResponse }) => {
   const [activeTab, setActiveTab] = useState(schema.collections[0].name);
@@ -238,30 +242,17 @@ const SchemaViewStep = ({ schema }: { schema: SchemaGenerateResponse }) => {
     });
   };
 
-  // Handler for adding new faker arg
-  const handleAddFakerArg = (collectionName: string, fieldName: string) => {
-    setSchemaState((prev) => ({
-      ...prev,
-      [collectionName]: {
-        ...prev[collectionName],
-        [fieldName]: {
-          ...prev[collectionName][fieldName],
-          fakerArgs: [...(prev[collectionName][fieldName].fakerArgs || []), ''],
-        },
-      },
-    }));
-  };
-
   return (
     <div>
       <p>
-        We sampled docs from your collections to infer the following schema.
-        Feel free to edit the values as needed.
+        We inferred this schema from a few sample documents. Feel free to edit
+        the values as needed.
       </p>
 
       <SegmentedControl
         value={activeTab}
         onChange={(value) => setActiveTab(value)}
+        className={css({ paddingBottom: '20px' })}
       >
         {schema.collections.map((collection) => {
           return (
@@ -319,26 +310,30 @@ const SchemaViewStep = ({ schema }: { schema: SchemaGenerateResponse }) => {
                           </Select>
                         </Cell>
                         <Cell>
-                          <Select
-                            className={tableSelectStyles}
-                            value={metadata.faker ?? ''}
-                            onChange={(value) =>
-                              handleFakerModuleChange(
-                                collection.name,
-                                fieldName,
-                                value
-                              )
-                            }
-                            label="Faker Module"
-                            dropdownWidthBasis="option"
-                            size={Size.Small}
-                          >
-                            {FAKER_DATA_TYPES.map((type) => (
-                              <Option key={type} value={type}>
-                                {type}
-                              </Option>
-                            ))}
-                          </Select>
+                          {metadata.type === 'ObjectId' ? (
+                            '—'
+                          ) : (
+                            <Select
+                              className={tableSelectStyles}
+                              value={metadata.faker ?? ''}
+                              onChange={(value) =>
+                                handleFakerModuleChange(
+                                  collection.name,
+                                  fieldName,
+                                  value
+                                )
+                              }
+                              label="Faker Module"
+                              dropdownWidthBasis="option"
+                              size={Size.Small}
+                            >
+                              {FAKER_DATA_TYPES.map((type) => (
+                                <Option key={type} value={type}>
+                                  {type}
+                                </Option>
+                              ))}
+                            </Select>
+                          )}
                         </Cell>
                         <Cell>
                           <div
@@ -426,11 +421,7 @@ const SchemaViewStep = ({ schema }: { schema: SchemaGenerateResponse }) => {
             language="json"
             copyable={false}
           >
-            {`${JSON.stringify(
-              FAKE_SCHEMA_GENERATE_RESPONSE.relationships[0],
-              null,
-              2
-            )}`}
+            {`${JSON.stringify(schema.relationships[0], null, 2)}`}
           </Code>
         </div>
       )}
@@ -525,43 +516,43 @@ const SelectCollectionsStep = ({
 };
 
 const DataPreviewStep = ({
-  isAiWarningChecked,
-  setIsAiWarningChecked,
   documents,
 }: {
-  isAiWarningChecked: boolean;
-  setIsAiWarningChecked: (isAiWarningChecked: boolean) => void;
-  documents: Array<Document>;
+  documents: PreviewDocumentsResponse;
 }) => {
-  const stringifiedDocuments = JSON.stringify(documents);
   return (
-    <div>
-      <Code
-        id="mock-data-preview"
-        data-testid="mock-data-preview"
-        language="json"
-        copyable={false}
-        className={codeStyles}
-      >
-        {stringifiedDocuments}
-      </Code>
+    <>
+      {Object.entries(documents).map(([collName, documents]) => {
+        return (
+          <>
+            <div className={rowStyles} key={collName}>
+              <div className={css({ paddingBottom: '20px' })}>
+                <Body className={chipTitleStyles}>Collection</Body>
+                <Chip
+                  className={chipStyles}
+                  variant={Variant.Gray}
+                  label={collName}
+                >
+                  {collName}
+                </Chip>
+              </div>
+            </div>
 
-      <div
-        className={css`
-          margin-top: 10px;
-        `}
-      >
-        <Checkbox
-          data-testid="ai-warning-checkbox"
-          id="ai-warning-checkbox"
-          label="AI Warning"
-          onChange={() => setIsAiWarningChecked(!isAiWarningChecked)}
-          checked={isAiWarningChecked}
-          description="Check this because you understand that this is using AI and so data
-          blah blah blah blah robots are coming just be aware!!!!"
-        />
-      </div>
-    </div>
+            <div className={css({ paddingBottom: '40px' })}>
+              <Code
+                id="mock-data-preview"
+                data-testid="mock-data-preview"
+                language="json"
+                copyable={false}
+                className={codeStyles}
+              >
+                {JSON.stringify(documents, null, 2)}
+              </Code>
+            </div>
+          </>
+        );
+      })}
+    </>
   );
 };
 
@@ -620,12 +611,11 @@ const MockDataGeneratorModal: React.FunctionComponent<
     selectedNumberOfDocumentsReference,
     setSelectedNumberOfDocumentsReference,
   ] = useState<number>(DEFAULT_NUMBER_OF_DOCUMENTS);
-  const [isAiWarningChecked, setIsAiWarningChecked] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [loadingText, setLoadingText] = useState<string | null>(null);
   const [schema, setSchema] = useState<SchemaGenerateResponse | null>(null);
   const [previewDocuments, setPreviewDocuments] =
-    useState<Array<Document> | null>(null);
+    useState<PreviewDocumentsResponse | null>(null);
 
   if (!modalOpen) {
     return null;
@@ -640,7 +630,7 @@ const MockDataGeneratorModal: React.FunctionComponent<
 
   const fetchSchema = async () => {
     try {
-      setIsLoading(true);
+      setLoadingText('Generating schema...');
       const response = await fetch('/schemaGenerator/generate', {
         method: 'POST',
         body: JSON.stringify(sampledDocuments),
@@ -656,19 +646,25 @@ const MockDataGeneratorModal: React.FunctionComponent<
       setErrorMessage(error.message);
       console.log({ error });
     } finally {
-      setIsLoading(false);
+      setLoadingText(null);
     }
   };
 
   const fetchPreviewDocuments = async () => {
     try {
-      setIsLoading(true);
+      setLoadingText('Generating preview documents...');
 
       const response = await fetch(
         'http://localhost:3000/api/data-generation/sample',
         {
           method: 'POST',
-          body: JSON.stringify({ schema }),
+          body: JSON.stringify({
+            schema: transformSchemaForDataGenerationService(
+              schema,
+              selectedNumberOfDocuments,
+              selectedNumberOfDocumentsReference
+            ),
+          }),
           headers: {
             'Content-Type': 'application/json',
           },
@@ -681,17 +677,21 @@ const MockDataGeneratorModal: React.FunctionComponent<
       setErrorMessage(error.message);
       console.log({ error });
     } finally {
-      setIsLoading(false);
+      setLoadingText(null);
     }
   };
 
   const submitDataGenerationJob = async () => {
     try {
-      setIsLoading(true);
+      setLoadingText('Submitting data generation job...');
       await fetch('http://localhost:3000/api/data-generation/jobs', {
         method: 'POST',
         body: JSON.stringify({
-          schema,
+          schema: transformSchemaForDataGenerationService(
+            schema,
+            selectedNumberOfDocuments,
+            selectedNumberOfDocumentsReference
+          ),
           idempotencyKey: new ObjectId().toHexString(),
         }),
         headers: {
@@ -702,7 +702,7 @@ const MockDataGeneratorModal: React.FunctionComponent<
       setErrorMessage(error.message);
       console.log({ error });
     } finally {
-      setIsLoading(false);
+      setLoadingText(null);
       onModalClose();
     }
   };
@@ -724,7 +724,6 @@ const MockDataGeneratorModal: React.FunctionComponent<
       setCurrentStep(currentStep + 1);
     }
   };
-
   const onBackButtonClick = () => {
     setErrorMessage(null);
 
@@ -733,8 +732,7 @@ const MockDataGeneratorModal: React.FunctionComponent<
     }
   };
 
-  const hasNotConfirmedAiWarning = !isAiWarningChecked && currentStep === 3;
-  const shouldDisablePrimaryButton = hasNotConfirmedAiWarning || !!errorMessage;
+  const shouldDisablePrimaryButton = !!errorMessage;
 
   return (
     <Modal
@@ -745,84 +743,74 @@ const MockDataGeneratorModal: React.FunctionComponent<
     >
       <ModalHeader title="Generate Mock Data" />
       <ModalBody>
-        {isLoading ? (
-          <SpinLoaderWithLabel progressText="Loading" />
-        ) : (
-          <>
-            {errorMessage && (
-              <Banner variant="danger">
-                <Body>{errorMessage}</Body>
-              </Banner>
-            )}
+        {errorMessage && (
+          <Banner variant="danger">
+            <Body>{errorMessage}</Body>
+          </Banner>
+        )}
 
-            {currentStep !== LAST_STEP && (
-              <div className={columnStyles}>
+        {currentStep !== LAST_STEP && (
+          <div className={columnStyles}>
+            <div className={rowStyles}>
+              <Body className={chipTitleStyles}>Database</Body>
+              <Chip
+                className={chipStyles}
+                variant={Variant.Gray}
+                label={dbName}
+              >
+                {dbName}
+              </Chip>
+            </div>
+
+            <div className={rowStyles}>
+              <Body className={chipTitleStyles}>Collection</Body>
+              <Chip
+                className={chipStyles}
+                variant={Variant.Gray}
+                label={collName}
+              >
+                {collName}
+              </Chip>
+            </div>
+
+            {(currentStep === 1 || currentStep === 2) &&
+              selectedRelatedCollections.length > 0 && (
                 <div className={rowStyles}>
-                  <Body className={chipTitleStyles}>Database</Body>
+                  <Body weight="medium">Related Collection</Body>
                   <Chip
                     className={chipStyles}
                     variant={Variant.Gray}
-                    label={dbName}
+                    label={selectedRelatedCollections[0]}
                   >
-                    {dbName}
+                    {selectedRelatedCollections[0]}
                   </Chip>
                 </div>
-
-                <div className={rowStyles}>
-                  <Body className={chipTitleStyles}>Collection</Body>
-                  <Chip
-                    className={chipStyles}
-                    variant={Variant.Gray}
-                    label={collName}
-                  >
-                    {collName}
-                  </Chip>
-                </div>
-
-                {(currentStep === 1 || currentStep === 2) &&
-                  selectedRelatedCollections.length > 0 && (
-                    <div className={rowStyles}>
-                      <Body weight="medium">Related Collection</Body>
-                      <Chip
-                        className={chipStyles}
-                        variant={Variant.Gray}
-                        label={selectedRelatedCollections[0]}
-                      >
-                        {selectedRelatedCollections[0]}
-                      </Chip>
-                    </div>
-                  )}
-              </div>
-            )}
-            {currentStep === 0 && (
-              <SelectCollectionsStep
-                collections={collections}
-                collName={collName}
-                selectedRelatedCollections={selectedRelatedCollections}
-                onCollectionSelect={onCollectionSelect}
-              />
-            )}
-            {currentStep === 1 && schema && <SchemaViewStep schema={schema} />}
-            {currentStep === 2 && (
-              <ConfirmNumberOfDocumentsStep
-                numberOfDocuments={selectedNumberOfDocuments}
-                setNumberOfDocuments={setSelectedNumberOfDocuments}
-                numberOfDocumentsReference={selectedNumberOfDocumentsReference}
-                setNumberOfDocumentsReference={
-                  setSelectedNumberOfDocumentsReference
-                }
-                collName={collName}
-                referenceCollName={selectedRelatedCollections[0]}
-              />
-            )}
-            {currentStep === 3 && previewDocuments && (
-              <DataPreviewStep
-                isAiWarningChecked={isAiWarningChecked}
-                setIsAiWarningChecked={setIsAiWarningChecked}
-                documents={previewDocuments}
-              />
-            )}
-          </>
+              )}
+          </div>
+        )}
+        {currentStep === 0 && (
+          <SelectCollectionsStep
+            collections={collections}
+            collName={collName}
+            selectedRelatedCollections={selectedRelatedCollections}
+            onCollectionSelect={onCollectionSelect}
+          />
+        )}
+        {currentStep === 1 && schema && <SchemaViewStep schema={schema} />}
+        {currentStep === 2 && (
+          <ConfirmNumberOfDocumentsStep
+            numberOfDocuments={selectedNumberOfDocuments}
+            setNumberOfDocuments={setSelectedNumberOfDocuments}
+            numberOfDocumentsReference={selectedNumberOfDocumentsReference}
+            setNumberOfDocumentsReference={
+              setSelectedNumberOfDocumentsReference
+            }
+            collName={collName}
+            referenceCollName={selectedRelatedCollections[0]}
+          />
+        )}
+        {currentStep === 3 && previewDocuments && (
+          <DataPreviewStep documents={previewDocuments} />
         )}
       </ModalBody>
 
@@ -839,7 +827,69 @@ const MockDataGeneratorModal: React.FunctionComponent<
           </Button>
         </div>
       </ModalFooter>
+
+      <LoadingOverlay loadingText={loadingText} />
     </Modal>
+  );
+};
+
+const LoadingOverlay = ({ loadingText }: { loadingText: string | null }) => {
+  const isLoading = !!loadingText;
+  if (!isLoading) {
+    return null;
+  }
+
+  return (
+    <div
+      className={css`
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        right: 0;
+        bottom: 0;
+        width: calc(100% - 40px);
+        height: calc(100% - 40px);
+        background: rgba(255, 255, 255, 1);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 150ms ease-in-out;
+        ${isLoading &&
+        `
+            opacity: 1;
+            pointer-events: all;
+          `}
+      `}
+    >
+      <div
+        className={css`
+          width: 32px;
+          height: 32px;
+          border: 2px solid #e7eeec;
+          border-top-color: #1c2d38;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+          @keyframes spin {
+            to {
+              transform: rotate(360deg);
+            }
+          }
+        `}
+      />
+      <Body
+        className={css`
+          font-size: 14px;
+          font-weight: 500;
+          color: #1c2d38;
+        `}
+      >
+        {loadingText}
+      </Body>
+    </div>
   );
 };
 
@@ -847,6 +897,28 @@ const mapStateToProps = (state: CollectionState) => ({
   collections: state.collections,
   sampledDocuments: state.sampledDocuments,
 });
+
+// dataGenerationService needs products to be before orders
+const transformSchemaForDataGenerationService = (
+  schema: SchemaGenerateResponse | null,
+  numDocs: number,
+  numDocsReference: number
+): SchemaGenerateResponse | null => {
+  if (!schema) return null;
+  const products = schema.collections.find(
+    (collection) => collection.name === 'products'
+  );
+  const orders = schema.collections.find(
+    (collection) => collection.name === 'orders'
+  );
+  return {
+    ...schema,
+    collections: [
+      ...(products ? [{ ...products, count: numDocs }] : []),
+      ...(orders ? [{ ...orders, count: numDocsReference }] : []),
+    ],
+  };
+};
 
 const MappedExportToLanguageModal = connect(mapStateToProps, {
   onCollectionsSelected: fetchSampleDocuments,

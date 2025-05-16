@@ -181,8 +181,9 @@ export const fetchSampleDocuments = (
       );
       const sampledDocuments: Array<SampledDocuments> =
         sampledDocumentsResponse.map((documents, index) => {
+          const [_, collName] = namespaces[index].split('.');
           return {
-            collectionName: namespaces[index],
+            collectionName: collName,
             documents,
           };
         });
