@@ -18,6 +18,8 @@ import { CollectionBadge } from './badges';
 import { useOpenWorkspace } from '@mongodb-js/compass-workspaces/provider';
 import { useConnectionInfo } from '@mongodb-js/compass-connections/provider';
 import { getConnectionTitle } from '@mongodb-js/connection-info';
+import MockDataGeneratorModal from '../mock-data-generator-modal';
+import Modal from '@leafygreen-ui/modal';
 
 const collectionHeaderStyles = css({
   padding: spacing[400],
@@ -95,6 +97,8 @@ export const CollectionHeader: React.FunctionComponent<
   editViewName,
   sourcePipeline,
 }) => {
+  const [isMockGeneratorModalOpen, setIsMockGeneratorModalOpen] =
+    React.useState(false);
   const darkMode = useDarkMode();
   const showInsights = usePreference('showInsights');
   const {
@@ -148,6 +152,8 @@ export const CollectionHeader: React.FunctionComponent<
     showInsights && sourcePipeline?.length
       ? getInsightsForPipeline(sourcePipeline, isAtlas)
       : [];
+
+  const { database, collection } = toNS(namespace);
   return (
     <div
       className={cx(
@@ -156,6 +162,12 @@ export const CollectionHeader: React.FunctionComponent<
       )}
       data-testid="collection-header"
     >
+      <MockDataGeneratorModal
+        modalOpen={isMockGeneratorModalOpen}
+        onModalClose={() => setIsMockGeneratorModalOpen(false)}
+        dbName={database}
+        collName={collection}
+      />
       <Breadcrumbs className={breadcrumbStyles} items={breadcrumbItems} />
       {isReadonly && <CollectionBadge type="readonly" />}
       {isTimeSeries && <CollectionBadge type="timeseries" />}
@@ -170,6 +182,9 @@ export const CollectionHeader: React.FunctionComponent<
           namespace={namespace}
           sourceName={sourceName}
           sourcePipeline={sourcePipeline}
+          onGenerateMockDataClick={() => {
+            setIsMockGeneratorModalOpen(true);
+          }}
         />
       </div>
     </div>

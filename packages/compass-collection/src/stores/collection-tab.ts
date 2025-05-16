@@ -5,10 +5,13 @@ import thunk from 'redux-thunk';
 import reducer, {
   selectTab,
   collectionMetadataFetched,
+  collectionsFetched,
+  sampledDocumentsFetched,
 } from '../modules/collection-tab';
 import type { Collection } from '@mongodb-js/compass-app-stores/provider';
 import type { ActivateHelpers } from 'hadron-app-registry';
 import type { workspacesServiceLocator } from '@mongodb-js/compass-workspaces/provider';
+import toNS from 'mongodb-ns';
 
 export type CollectionTabOptions = {
   /**
@@ -58,6 +61,8 @@ export function activatePlugin(
       namespace,
       metadata: null,
       editViewName,
+      collections: [],
+      sampledDocuments: null,
     },
     applyMiddleware(
       thunk.withExtraArgument({
@@ -83,9 +88,27 @@ export function activatePlugin(
   on(localAppRegistry, 'menu-share-schema-json', () => {
     store.dispatch(selectTab('Schema'));
   });
+  console.log('Collection Tab activated');
 
   void collectionModel.fetchMetadata({ dataService }).then((metadata) => {
     store.dispatch(collectionMetadataFetched(metadata));
+    const { database } = toNS(namespace);
+    // for mock data generator
+    dataService.listCollections(database).then((collectionDetails) => {
+      const collections = collectionDetails.map(({ name }) => name);
+      store.dispatch(collectionsFetched(collections));
+    });
+    // initial sample documents
+    dataService.sample(namespace, { size: 5 }).then((sampledDocuments) => {
+      store.dispatch(
+        sampledDocumentsFetched([
+          {
+            collectionName: toNS(namespace).collection,
+            documents: sampledDocuments,
+          },
+        ])
+      );
+    });
   });
 
   return {
